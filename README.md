@@ -76,3 +76,5 @@ http://localhost:8000
 ## 📌 About
 
 PokéVault is a portfolio project focused on building a polished, full-stack application around a real-world data source while exploring API integration, caching, collection management, pricing data, and data visualization.
+
+This project will be continuously developed with new features, improvements, and enhancements, with the goal of actively maintaining and supporting PokéVault well into the future.
