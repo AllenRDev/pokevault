@@ -5,16 +5,18 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class CollectionCard extends Model
+class UserCard extends Model
 {
     protected $fillable = [
-        'collection_id',
+        'user_id',
         'card_id',
         'quantity',
         'condition',
         'language',
         'purchase_price',
         'purchase_date',
+        'market_price',
+        'market_price_updated_at',
         'notes',
     ];
 
@@ -23,12 +25,14 @@ class CollectionCard extends Model
         return [
             'purchase_price' => 'decimal:2',
             'purchase_date' => 'date',
+            'market_price' => 'decimal:2',
+            'market_price_updated_at' => 'datetime',
         ];
     }
 
-    public function collection(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(Collection::class);
+        return $this->belongsTo(User::class);
     }
 
     public function card(): BelongsTo

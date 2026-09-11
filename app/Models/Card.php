@@ -23,8 +23,8 @@ class Card extends Model
         return $this->belongsTo(Set::class);
     }
 
-    public function collectionCards(): HasMany
-    {
-        return $this->hasMany(CollectionCard::class);
-    }
+    public function userCards(): HasMany
+{
+    return $this->hasMany(UserCard::class);
+}
 }

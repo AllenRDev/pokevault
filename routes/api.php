@@ -2,6 +2,7 @@
 
 use Illuminate\Http\Request;
 use App\Http\Controllers\CardController;
+use App\Http\Controllers\UserCardController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/user', function (Request $request) {

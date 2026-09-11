@@ -7,10 +7,11 @@ import {
     Sidebar,
     SidebarContent,
     SidebarFooter,
-    SidebarHeader,
+    SidebarGroup,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
+    SidebarHeader,
 } from '@/components/ui/sidebar';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { dashboard } from '@/routes';
@@ -50,7 +51,14 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <ThemeToggle />
+                <SidebarGroup className="px-2 py-0">
+                    <SidebarMenu>
+                        <SidebarMenuItem>
+                            <ThemeToggle />
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroup>
+
                 <NavMain items={mainNavItems} />
             </SidebarContent>
 

@@ -29,15 +29,25 @@ class TcgDexCardMapper
     {
         $image = $card['image'] ?? null;
 
+        $setId = $card['set']['id'] ?? null;
+
         return [
             'external_id' => $card['id'],
             'name' => $card['name'],
             'number' => $card['localId'] ?? '',
             'rarity' => $card['rarity'] ?? null,
-            'image_small' => $image ? "{$image}/low.webp" : null,
-            'image_large' => $image ? "{$image}/high.webp" : null,
 
-            'prices' => $this->mapPricing($card['pricing'] ?? null),
+            'image_small' => $image
+                ? "{$image}/low.webp"
+                : null,
+
+            'image_large' => $image
+                ? "{$image}/high.webp"
+                : null,
+
+            'prices' => $this->mapPricing(
+                $card['pricing'] ?? null
+            ),
 
             'set' => [
     'external_id' => $card['set']['id'] ?? '',
@@ -45,92 +55,64 @@ class TcgDexCardMapper
     'series' => $card['set']['serie']['name'] ?? null,
     'printed_total' => $card['set']['cardCount']['official'] ?? null,
     'release_date' => $card['set']['releaseDate'] ?? null,
-    'logo_url' => $card['set']['logo'] ? "{$card['set']['logo']}/high.webp" : null,
-    'symbol_url' => $card['set']['symbol'] ? "{$card['set']['symbol']}.webp" : null,
+
+    'logo_url' => $this->mapSetImage(
+        $card['set']['logo'] ?? null
+    ),
+
+    'symbol_url' => $this->mapSetImage(
+        $card['set']['symbol'] ?? null
+    ),
 ],
         ];
     }
+    
+private function mapSetImage(?string $image): ?string
+{
+    if (!$image) {
+        return null;
+    }
 
-    /**
-     * Map marketplace pricing while preserving TCGdex's
-     * variant-specific pricing structure.
-     */
+    return "{$image}.webp";
+}
+
     private function mapPricing(?array $pricing): ?array
     {
         if (!$pricing) {
             return null;
         }
 
-        $result = [];
-
-        if (isset($pricing['tcgplayer'])) {
-            $tcgplayer = $pricing['tcgplayer'];
-
-            $result['tcgplayer'] = [
-                'updated' => $tcgplayer['updated'] ?? null,
-                'unit' => $tcgplayer['unit'] ?? 'USD',
-
+        return [
+            'tcgplayer' => [
+                'updated' => $pricing['tcgplayer']['updated'] ?? null,
+                'unit' => $pricing['tcgplayer']['unit'] ?? 'USD',
                 'normal' => $this->mapTcgPlayerVariant(
-                    $tcgplayer['normal'] ?? null
+                    $pricing['tcgplayer']['normal'] ?? null
                 ),
-
-                'reverse' => $this->mapTcgPlayerVariant(
-                    $tcgplayer['reverse'] ?? $tcgplayer['reverse-holofoil'] ?? null
+                'holofoil' => $this->mapTcgPlayerVariant(
+                    $pricing['tcgplayer']['holofoil'] ?? null
                 ),
-
-                'holo' => $this->mapTcgPlayerVariant(
-                    $tcgplayer['holofoil'] ?? $tcgplayer['holo'] ?? null
+                'reverse_holofoil' => $this->mapTcgPlayerVariant(
+                    $pricing['tcgplayer']['reverse-holofoil'] ?? null
                 ),
-
                 'first_edition' => $this->mapTcgPlayerVariant(
-                    $tcgplayer['1st-edition'] ?? null
+                    $pricing['tcgplayer']['1st-edition'] ?? null
                 ),
+            ],
 
-                'first_edition_holo' => $this->mapTcgPlayerVariant(
-                    $tcgplayer['1st-edition-holofoil'] ?? null
-                ),
-
-                'unlimited' => $this->mapTcgPlayerVariant(
-                    $tcgplayer['unlimited'] ?? null
-                ),
-
-                'unlimited_holo' => $this->mapTcgPlayerVariant(
-                    $tcgplayer['unlimited-holofoil'] ?? null
-                ),
-            ];
-        }
-
-        if (isset($pricing['cardmarket'])) {
-            $cardmarket = $pricing['cardmarket'];
-
-            $result['cardmarket'] = [
-                'updated' => $cardmarket['updated'] ?? null,
-                'unit' => $cardmarket['unit'] ?? 'EUR',
-
-                'average' => $cardmarket['avg'] ?? null,
-                'low' => $cardmarket['low'] ?? null,
-                'trend' => $cardmarket['trend'] ?? null,
-
-                'average_1d' => $cardmarket['avg1'] ?? null,
-                'average_7d' => $cardmarket['avg7'] ?? null,
-                'average_30d' => $cardmarket['avg30'] ?? null,
-
-                'average_holo' => $cardmarket['avg-holo'] ?? null,
-                'low_holo' => $cardmarket['low-holo'] ?? null,
-                'trend_holo' => $cardmarket['trend-holo'] ?? null,
-
-                'average_1d_holo' => $cardmarket['avg1-holo'] ?? null,
-                'average_7d_holo' => $cardmarket['avg7-holo'] ?? null,
-                'average_30d_holo' => $cardmarket['avg30-holo'] ?? null,
-            ];
-        }
-
-        return empty($result) ? null : $result;
+            'cardmarket' => [
+                'updated' => $pricing['cardmarket']['updated'] ?? null,
+                'unit' => $pricing['cardmarket']['unit'] ?? 'EUR',
+                'avg' => $pricing['cardmarket']['avg'] ?? null,
+                'low' => $pricing['cardmarket']['low'] ?? null,
+                'trend' => $pricing['cardmarket']['trend'] ?? null,
+                'avg1' => $pricing['cardmarket']['avg1'] ?? null,
+                'avg7' => $pricing['cardmarket']['avg7'] ?? null,
+                'avg30' => $pricing['cardmarket']['avg30'] ?? null,
+            ],
+        ];
     }
 
-    /**
-     * Map a TCGplayer pricing variant.
-     */
     private function mapTcgPlayerVariant(?array $variant): ?array
     {
         if (!$variant) {
@@ -146,6 +128,18 @@ class TcgDexCardMapper
         ];
     }
 
+    public function getMarketPrice(array $cardData): ?float
+{
+    return $cardData['prices']['tcgplayer']['normal']['market']
+        ?? $cardData['prices']['tcgplayer']['holofoil']['market']
+        ?? $cardData['prices']['tcgplayer']['reverse_holofoil']['market']
+        ?? $cardData['prices']['tcgplayer']['first_edition']['market']
+        ?? null;
+}
+
+    /**
+     * Map multiple lightweight cards.
+     */
     public function mapBriefMany(array $cards): array
     {
         return array_map(

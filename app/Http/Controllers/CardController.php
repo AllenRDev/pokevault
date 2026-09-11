@@ -32,13 +32,15 @@ class CardController extends Controller
     {
         $card = $this->tcgDexService->getCard($id);
 
+        dd($card);
         return response()->json($card);
     }
 
-    public function page(string $id): Response
+  public function page(string $id): Response
 {
     return Inertia::render('cards/show', [
         'card' => $this->tcgDexService->getCard($id),
+        'isAuthenticated' => auth()->check(),
     ]);
 }
 }
