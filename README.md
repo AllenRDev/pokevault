@@ -66,7 +66,7 @@ http://localhost:8000
 * [x] Market pricing
 * [x] User authentication
 * [x] Collection database structure
-* [ ] Add cards to collections
+* [x] Add cards to collections
 * [ ] Collection management UI
 * [ ] Historical price tracking
 * [ ] Collection value analytics
