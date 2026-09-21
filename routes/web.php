@@ -10,6 +10,11 @@ Route::get('/cards', function () {
     return Inertia::render('cards/index');
 })->name('cards.index');
 
+Route::get('/cards/scan', function () {
+    return Inertia::render('cards/scan');
+})->middleware(['auth'])->name('cards.scan');
+
+
 Route::get('/cards/{id}', function (string $id) {
     return Inertia::render('cards/show', [
         'card' => app(\App\Services\TcgDexService::class)->getCard($id),
