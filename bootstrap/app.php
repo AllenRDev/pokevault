@@ -18,6 +18,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        /*
+         * Rate limit the stateless API surface. These endpoints proxy the
+         * public TCGdex API, so they are unauthenticated and must be
+         * throttled to keep the upstream quota from being exhausted.
+         */
+        $middleware->throttleApi();
+
         $middleware->web(append: [
             HandleAppearance::class,
             HandleInertiaRequests::class,

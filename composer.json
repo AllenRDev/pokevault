@@ -1,11 +1,14 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/react-starter-kit",
+    "name": "coryr/dexvault",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
+    "description": "A personal Pokemon TCG collection tracker built on Laravel and Inertia.",
     "keywords": [
         "laravel",
-        "framework"
+        "inertia",
+        "react",
+        "pokemon",
+        "tcg"
     ],
     "license": "MIT",
     "require": {

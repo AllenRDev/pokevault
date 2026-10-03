@@ -1,5 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
-import { ArrowRight, BookOpen, Layers3, Package, Search, WalletCards } from 'lucide-react';
+import {
+    ArrowRight,
+    BookOpen,
+    Layers3,
+    Package,
+    Search,
+    WalletCards,
+} from 'lucide-react';
 import { dashboard } from '@/routes';
 
 interface DashboardProps {
@@ -35,13 +42,10 @@ export default function Dashboard({ overall }: DashboardProps) {
         },
         {
             label: 'Collection Value',
-            value: `$${Number(overall.estimated_value).toLocaleString(
-                'en-US',
-                {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                },
-            )}`,
+            value: `$${Number(overall.estimated_value).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            })}`,
             description: 'Estimated market value',
             icon: WalletCards,
         },
@@ -54,17 +58,17 @@ export default function Dashboard({ overall }: DashboardProps) {
             <div className="flex h-full flex-1 flex-col gap-8 p-6 lg:p-8">
                 {/* Header */}
                 <div>
-                    <p className="text-sm font-medium text-primary">
+                    <p className="text-primary text-sm font-medium">
                         Welcome back to
                     </p>
 
                     <h1 className="mt-1 text-3xl font-bold tracking-tight">
-                        Your PokéVault
+                        Your DexVault
                     </h1>
 
-                    <p className="mt-2 max-w-2xl text-muted-foreground">
-                        Keep track of your Pokémon TCG collection, discover
-                        new cards, and see what your collection is worth.
+                    <p className="text-muted-foreground mt-2 max-w-2xl">
+                        Keep track of your Pokémon TCG collection, discover new
+                        cards, and see what your collection is worth.
                     </p>
                 </div>
 
@@ -76,11 +80,11 @@ export default function Dashboard({ overall }: DashboardProps) {
                         return (
                             <div
                                 key={stat.label}
-                                className="group rounded-xl border bg-card p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
+                                className="group bg-card rounded-xl border p-5 transition-all hover:-translate-y-0.5 hover:shadow-md"
                             >
                                 <div className="flex items-start justify-between">
                                     <div>
-                                        <p className="text-sm font-medium text-muted-foreground">
+                                        <p className="text-muted-foreground text-sm font-medium">
                                             {stat.label}
                                         </p>
 
@@ -89,12 +93,12 @@ export default function Dashboard({ overall }: DashboardProps) {
                                         </p>
                                     </div>
 
-                                    <div className="rounded-lg bg-primary/10 p-2.5 text-primary transition-colors group-hover:bg-primary/15">
+                                    <div className="bg-primary/10 text-primary group-hover:bg-primary/15 rounded-lg p-2.5 transition-colors">
                                         <Icon className="size-5" />
                                     </div>
                                 </div>
 
-                                <p className="mt-3 text-xs text-muted-foreground">
+                                <p className="text-muted-foreground mt-3 text-xs">
                                     {stat.description}
                                 </p>
                             </div>
@@ -105,21 +109,21 @@ export default function Dashboard({ overall }: DashboardProps) {
                 {/* Main content */}
                 {hasCards ? (
                     <div className="grid flex-1 gap-6 lg:grid-cols-2">
-                        <div className="rounded-xl border bg-card p-6">
+                        <div className="bg-card rounded-xl border p-6">
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h2 className="text-lg font-semibold">
                                         Your Collection
                                     </h2>
 
-                                    <p className="mt-1 text-sm text-muted-foreground">
+                                    <p className="text-muted-foreground mt-1 text-sm">
                                         Manage the cards you own.
                                     </p>
                                 </div>
 
                                 <Link
                                     href="/collection"
-                                    className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                                    className="text-primary inline-flex items-center gap-1 text-sm font-medium hover:underline"
                                 >
                                     View collection
                                     <ArrowRight className="size-4" />
@@ -128,9 +132,9 @@ export default function Dashboard({ overall }: DashboardProps) {
 
                             <div className="mt-8 flex items-center justify-center rounded-lg border border-dashed p-10">
                                 <div className="text-center">
-                                    <Package className="mx-auto size-10 text-muted-foreground/50" />
+                                    <Package className="text-muted-foreground/50 mx-auto size-10" />
 
-                                    <p className="mt-3 text-sm text-muted-foreground">
+                                    <p className="text-muted-foreground mt-3 text-sm">
                                         Your collection overview will appear
                                         here as you add more cards.
                                     </p>
@@ -138,33 +142,33 @@ export default function Dashboard({ overall }: DashboardProps) {
                             </div>
                         </div>
 
-                        <div className="rounded-xl border bg-card p-6">
+                        <div className="bg-card rounded-xl border p-6">
                             <div>
                                 <h2 className="text-lg font-semibold">
                                     Discover More Cards
                                 </h2>
 
-                                <p className="mt-1 text-sm text-muted-foreground">
+                                <p className="text-muted-foreground mt-1 text-sm">
                                     Search TCGdex to find cards and add them to
                                     your collection.
                                 </p>
                             </div>
 
                             <div className="mt-8 flex flex-col items-center justify-center rounded-lg border border-dashed p-10 text-center">
-                                <Search className="size-10 text-primary/60" />
+                                <Search className="text-primary/60 size-10" />
 
                                 <h3 className="mt-4 font-medium">
                                     Looking for something?
                                 </h3>
 
-                                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                                <p className="text-muted-foreground mt-1 max-w-sm text-sm">
                                     Search thousands of Pokémon TCG cards and
                                     explore their details and market prices.
                                 </p>
 
                                 <Link
                                     href="/cards"
-                                    className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                                    className="bg-primary text-primary-foreground mt-5 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90"
                                 >
                                     <Search className="size-4" />
                                     Search Cards
@@ -173,9 +177,9 @@ export default function Dashboard({ overall }: DashboardProps) {
                         </div>
                     </div>
                 ) : (
-                    <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed bg-card/50 p-8">
+                    <div className="bg-card/50 flex flex-1 items-center justify-center rounded-xl border border-dashed p-8">
                         <div className="max-w-md text-center">
-                            <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                            <div className="bg-primary/10 text-primary mx-auto flex size-16 items-center justify-center rounded-2xl">
                                 <WalletCards className="size-8" />
                             </div>
 
@@ -183,16 +187,16 @@ export default function Dashboard({ overall }: DashboardProps) {
                                 Your collection is waiting
                             </h2>
 
-                            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                            <p className="text-muted-foreground mt-2 text-sm leading-6">
                                 Search for your favorite Pokémon cards and add
-                                them to PokéVault. Once you start collecting,
+                                them to DexVault. Once you start collecting,
                                 your stats and collection value will show up
                                 here.
                             </p>
 
                             <Link
                                 href="/cards"
-                                className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                                className="bg-primary text-primary-foreground mt-6 inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-opacity hover:opacity-90"
                             >
                                 <Search className="size-4" />
                                 Start Searching

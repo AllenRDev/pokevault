@@ -17,6 +17,9 @@ class Set extends Model
         'symbol_url',
     ];
 
+    /**
+     * @return HasMany<Card, $this>
+     */
     public function cards(): HasMany
     {
         return $this->hasMany(Card::class);

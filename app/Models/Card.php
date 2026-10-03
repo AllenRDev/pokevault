@@ -18,13 +18,19 @@ class Card extends Model
         'image_large',
     ];
 
+    /**
+     * @return BelongsTo<Set, $this>
+     */
     public function set(): BelongsTo
     {
         return $this->belongsTo(Set::class);
     }
 
+    /**
+     * @return HasMany<UserCard, $this>
+     */
     public function userCards(): HasMany
-{
-    return $this->hasMany(UserCard::class);
-}
+    {
+        return $this->hasMany(UserCard::class);
+    }
 }

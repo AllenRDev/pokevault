@@ -1,0 +1,12 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "provider": {
+        "ollama": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "Ollama (Windows)",
+            "options": {
+                "baseURL": "http://172.30.144.1:11434/v1"
+            }
+        }
+    }
+}

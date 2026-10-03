@@ -2,88 +2,170 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\CardNotFoundException;
+use App\Http\Requests\StoreUserCardRequest;
 use App\Models\Card;
 use App\Models\Set;
 use App\Models\UserCard;
+use App\Services\CollectionStats;
 use App\Services\TcgDexCardMapper;
 use App\Services\TcgDexService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class UserCardController extends Controller
 {
+    /**
+     * The orderings the collection listing accepts.
+     *
+     * @var list<string>
+     */
+    public const SORTS = [
+        'recent',
+        'name',
+        'price-high',
+        'price-low',
+        'quantity',
+    ];
+
+    /**
+     * How many collection cards a page holds when none is requested.
+     */
+    public const DEFAULT_PER_PAGE = 24;
+
     public function __construct(
         private TcgDexService $tcgDexService,
         private TcgDexCardMapper $cardMapper,
-    ) {
+    ) {}
+
+    /**
+     * Get a page of the authenticated user's cards.
+     *
+     * Searching, sorting, and paging happen in the database so the response
+     * stays a fixed size no matter how large the collection grows. The
+     * summary covers the current search but ignores paging and sorting, so
+     * the header totals do not change as the user moves between pages.
+     */
+    public function index(Request $request, CollectionStats $stats): JsonResponse
+    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'sort' => ['nullable', Rule::in(self::SORTS)],
+            'per_page' => ['nullable', 'integer', 'min:12', 'max:96'],
+        ]);
+
+        $sort = $validated['sort'] ?? 'recent';
+
+        $query = $this->collectionQuery($request, $validated['search'] ?? null);
+
+        $summary = [
+            ...$stats->summarize(clone $query),
+            'portfolio_value' => $stats->portfolioValue(clone $query),
+        ];
+
+        $this->applySort($query, $sort);
+
+        $paginator = $query
+            ->with('card.set')
+            ->paginate((int) ($validated['per_page'] ?? self::DEFAULT_PER_PAGE))
+            ->withQueryString();
+
+        return response()->json([
+            'data' => $paginator->items(),
+            'summary' => $summary,
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
+        ]);
     }
 
     /**
-     * Get the authenticated user's cards.
+     * The base listing query, narrowed to a search term when one is given.
+     *
+     * The filter is applied through `whereHas` so it compiles to a subquery
+     * rather than a join; that leaves `cards` free to be joined later by
+     * {@see self::applySort()} without colliding with the aggregates.
+     *
+     * @return Builder<UserCard>
      */
-    public function index(Request $request): JsonResponse
+    private function collectionQuery(Request $request, ?string $search): Builder
     {
-        $userCards = $request->user()
-            ->userCards()
-            ->with('card.set')
-            ->orderByDesc('created_at')
-            ->get();
+        $query = $request->user()->userCards()->getQuery();
 
-        return response()->json($userCards);
+        $term = trim((string) $search);
+
+        if ($term === '') {
+            return $query;
+        }
+
+        $needle = '%'.str_replace(['%', '_'], ['\%', '\_'], $term).'%';
+
+        return $query->whereHas('card', function (Builder $card) use ($needle): void {
+            $card->where('name', 'like', $needle)
+                ->orWhere('number', 'like', $needle)
+                ->orWhereHas('set', function (Builder $set) use ($needle): void {
+                    $set->where('name', 'like', $needle);
+                });
+        });
+    }
+
+    /**
+     * Order the listing, keeping the sort stable across pages.
+     *
+     * Sorting by card name is the only option that needs the `cards` table in
+     * the query, so the join is applied here rather than up front.
+     *
+     * @param  Builder<UserCard>  $query
+     */
+    private function applySort(Builder $query, string $sort): void
+    {
+        if ($sort === 'name') {
+            $query->leftJoin('cards', 'cards.id', '=', 'user_cards.card_id')
+                ->select('user_cards.*')
+                ->orderBy('cards.name')
+                ->orderBy('user_cards.id');
+
+            return;
+        }
+
+        match ($sort) {
+            'price-high' => $query->orderByDesc('market_price'),
+            'price-low' => $query->orderBy('market_price'),
+            'quantity' => $query->orderByDesc('quantity'),
+            default => $query->orderByDesc('created_at'),
+        };
+
+        $query->orderByDesc('id');
     }
 
     /**
      * Add a TCGdex card to the user's collection.
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreUserCardRequest $request): JsonResponse
     {
-        $validated = $request->validate([
-            'external_id' => ['required', 'string', 'max:100'],
-            'quantity' => ['required', 'integer', 'min:1', 'max:999'],
-            'condition' => [
-                'required',
-                'string',
-                Rule::in([
-                    'Near Mint',
-                    'Lightly Played',
-                    'Moderately Played',
-                    'Heavily Played',
-                    'Damaged',
-                ]),
-            ],
-            'language' => [
-                'required',
-                'string',
-                Rule::in([
-                    'English',
-                    'Japanese',
-                    'Korean',
-                    'Chinese',
-                    'French',
-                    'German',
-                    'Italian',
-                    'Spanish',
-                    'Portuguese',
-                ]),
-            ],
-            'purchase_price' => [
-                'nullable',
-                'numeric',
-                'min:0',
-                'max:99999999.99',
-            ],
-            'purchase_date' => ['nullable', 'date'],
-            'notes' => ['nullable', 'string', 'max:2000'],
-        ]);
+        $validated = $request->validated();
 
         /*
          * Get the full card from TCGdex so the card and
-         * its set can be stored locally.
+         * its set can be stored locally. The read cache is
+         * bypassed so the price recorded below is current
+         * rather than up to a day old.
          */
-        $cardData = $this->tcgDexService->getCard(
-            $validated['external_id']
-        );
+        try {
+            $cardData = $this->tcgDexService->getCard(
+                $validated['external_id'],
+                fresh: true
+            );
+        } catch (CardNotFoundException) {
+            abort(404, 'Card not found.');
+        }
 
         $set = Set::updateOrCreate(
             [
@@ -134,21 +216,25 @@ class UserCardController extends Controller
         ])->first();
 
         if ($userCard) {
-            $userCard->quantity += $validated['quantity'];
+            /*
+             * The incoming quantity is validated, but it is bounded again
+             * here so the stored total can neither be pushed past the same
+             * ceiling nor go negative.
+             */
+            $incoming = max(
+                1,
+                min(UserCard::MAX_QUANTITY, (int) $validated['quantity'])
+            );
 
-            if (array_key_exists('purchase_price', $validated)) {
-                $userCard->purchase_price =
-                    $validated['purchase_price'];
-            }
+            $userCard->quantity = min(
+                UserCard::MAX_QUANTITY,
+                $userCard->quantity + $incoming
+            );
 
-            if (array_key_exists('purchase_date', $validated)) {
-                $userCard->purchase_date =
-                    $validated['purchase_date'];
-            }
-
-            if (array_key_exists('notes', $validated)) {
-                $userCard->notes =
-                    $validated['notes'];
+            foreach (['purchase_price', 'purchase_date', 'notes'] as $field) {
+                if (array_key_exists($field, $validated)) {
+                    $userCard->{$field} = $validated[$field];
+                }
             }
 
             $userCard->market_price = $marketPrice;
@@ -163,15 +249,11 @@ class UserCardController extends Controller
                 'quantity' => $validated['quantity'],
                 'condition' => $validated['condition'],
                 'language' => $validated['language'],
-                'purchase_price' =>
-                    $validated['purchase_price'] ?? null,
-                'purchase_date' =>
-                    $validated['purchase_date'] ?? null,
-                'notes' =>
-                    $validated['notes'] ?? null,
+                'purchase_price' => $validated['purchase_price'] ?? null,
+                'purchase_date' => $validated['purchase_date'] ?? null,
+                'notes' => $validated['notes'] ?? null,
                 'market_price' => $marketPrice,
-                'market_price_updated_at' =>
-                    $marketPriceUpdatedAt,
+                'market_price_updated_at' => $marketPriceUpdatedAt,
             ]);
         }
 
@@ -187,7 +269,7 @@ class UserCardController extends Controller
      * Update a card in the user's collection.
      */
     public function update(
-        Request $request,
+        StoreUserCardRequest $request,
         UserCard $userCard
     ): JsonResponse {
         abort_unless(
@@ -195,45 +277,7 @@ class UserCardController extends Controller
             404
         );
 
-        $validated = $request->validate([
-            'quantity' => ['required', 'integer', 'min:1', 'max:999'],
-            'condition' => [
-                'required',
-                'string',
-                Rule::in([
-                    'Near Mint',
-                    'Lightly Played',
-                    'Moderately Played',
-                    'Heavily Played',
-                    'Damaged',
-                ]),
-            ],
-            'language' => [
-                'required',
-                'string',
-                Rule::in([
-                    'English',
-                    'Japanese',
-                    'Korean',
-                    'Chinese',
-                    'French',
-                    'German',
-                    'Italian',
-                    'Spanish',
-                    'Portuguese',
-                ]),
-            ],
-            'purchase_price' => [
-                'nullable',
-                'numeric',
-                'min:0',
-                'max:99999999.99',
-            ],
-            'purchase_date' => ['nullable', 'date'],
-            'notes' => ['nullable', 'string', 'max:2000'],
-        ]);
-
-        $userCard->update($validated);
+        $userCard->update($request->validated());
         $userCard->load('card.set');
 
         return response()->json([

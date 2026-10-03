@@ -68,7 +68,17 @@ const mediaQuery = (): MediaQueryList | null => {
     return window.matchMedia('(prefers-color-scheme: dark)');
 };
 
-const handleSystemThemeChange = (): void => applyTheme(currentAppearance);
+/**
+ * Re-apply the theme when the OS preference changes.
+ *
+ * `notify()` is required as well as `applyTheme()`: subscribers such as the
+ * theme toggle derive their icon from the resolved appearance, so without a
+ * notification they keep rendering the previous OS state.
+ */
+const handleSystemThemeChange = (): void => {
+    applyTheme(currentAppearance);
+    notify();
+};
 
 export function initializeTheme(): void {
     if (typeof window === 'undefined') {

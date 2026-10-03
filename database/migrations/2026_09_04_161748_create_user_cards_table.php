@@ -9,45 +9,45 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up(): void
-{
-   Schema::create('user_cards', function (Blueprint $table) {
-    $table->id();
+    public function up(): void
+    {
+        Schema::create('user_cards', function (Blueprint $table) {
+            $table->id();
 
-    $table->foreignId('user_id')
-        ->constrained()
-        ->cascadeOnDelete();
+            $table->foreignId('user_id')
+                ->constrained()
+                ->cascadeOnDelete();
 
-    $table->foreignId('card_id')
-        ->constrained()
-        ->cascadeOnDelete();
+            $table->foreignId('card_id')
+                ->constrained()
+                ->cascadeOnDelete();
 
-    $table->unsignedInteger('quantity')->default(1);
+            $table->unsignedInteger('quantity')->default(1);
 
-    $table->string('condition')->nullable();
+            $table->string('condition')->nullable();
 
-    $table->string('language')->default('English');
+            $table->string('language')->default('English');
 
-    $table->decimal('purchase_price', 10, 2)->nullable();
+            $table->decimal('purchase_price', 10, 2)->nullable();
 
-    $table->date('purchase_date')->nullable();
+            $table->date('purchase_date')->nullable();
 
-    $table->decimal('market_price', 10, 2)->nullable();
+            $table->decimal('market_price', 10, 2)->nullable();
 
-    $table->timestamp('market_price_updated_at')->nullable();
+            $table->timestamp('market_price_updated_at')->nullable();
 
-    $table->text('notes')->nullable();
+            $table->text('notes')->nullable();
 
-    $table->timestamps();
+            $table->timestamps();
 
-    $table->unique([
-        'user_id',
-        'card_id',
-        'condition',
-        'language',
-    ]);
-});
-}
+            $table->unique([
+                'user_id',
+                'card_id',
+                'condition',
+                'language',
+            ]);
+        });
+    }
 
     /**
      * Reverse the migrations.

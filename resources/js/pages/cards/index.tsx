@@ -48,6 +48,12 @@ export default function CardIndex() {
             setResults(data.data);
             setSearched(true);
         } catch {
+            /*
+             * Previous results are cleared so a failed search does not leave
+             * the previous query's cards on screen next to the error.
+             */
+            setResults([]);
+            setSearched(false);
             setError('Something went wrong while searching for cards.');
         } finally {
             setLoading(false);
@@ -58,7 +64,7 @@ export default function CardIndex() {
         <>
             <Head title="Card Search" />
 
-            <div className="min-h-screen bg-background">
+            <div className="bg-background min-h-screen">
                 {/* Header */}
                 <section className="relative overflow-hidden border-b">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(59,130,246,0.14),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(168,85,247,0.12),transparent_30%)] dark:bg-[radial-gradient(circle_at_20%_20%,rgba(220,38,38,0.16),transparent_35%),radial-gradient(circle_at_80%_0%,rgba(126,34,206,0.12),transparent_30%)]" />
@@ -77,7 +83,7 @@ export default function CardIndex() {
                                 </span>
                             </h1>
 
-                            <p className="mt-4 text-muted-foreground">
+                            <p className="text-muted-foreground mt-4">
                                 Search the vault to discover cards, artwork,
                                 sets, and more.
                             </p>
@@ -85,7 +91,7 @@ export default function CardIndex() {
                             <form onSubmit={handleSearch} className="mt-8">
                                 <div className="flex flex-col gap-3 sm:flex-row">
                                     <div className="relative flex-1">
-                                        <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-blue-500 dark:text-red-500" />
+                                        <Search className="absolute top-1/2 left-4 size-5 -translate-y-1/2 text-blue-500 dark:text-red-500" />
 
                                         <input
                                             type="text"
@@ -94,21 +100,18 @@ export default function CardIndex() {
                                                 setQuery(event.target.value)
                                             }
                                             placeholder="Try Charizard, Pikachu, Mew..."
-                                            className="h-14 w-full rounded-2xl border bg-background/90 pl-12 pr-4 shadow-lg shadow-blue-500/5 outline-none transition-all placeholder:text-muted-foreground/60 focus:border-blue-500/40 focus:ring-4 focus:ring-blue-500/10 dark:shadow-red-500/5 dark:focus:border-red-500/40 dark:focus:ring-red-500/10"
+                                            className="bg-background/90 placeholder:text-muted-foreground/60 h-14 w-full rounded-2xl border pr-4 pl-12 shadow-lg shadow-blue-500/5 transition-all outline-none focus:border-blue-500/40 focus:ring-4 focus:ring-blue-500/10 dark:shadow-red-500/5 dark:focus:border-red-500/40 dark:focus:ring-red-500/10"
                                         />
                                     </div>
 
                                     <button
                                         type="submit"
                                         disabled={
-                                            loading ||
-                                            query.trim().length < 2
+                                            loading || query.trim().length < 2
                                         }
-                                        className="h-14 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 px-7 font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:shadow-xl dark:from-red-600 dark:to-red-800 dark:shadow-red-900/30 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+                                        className="h-14 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 px-7 font-bold text-white shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0 dark:from-red-600 dark:to-red-800 dark:shadow-red-900/30"
                                     >
-                                        {loading
-                                            ? 'Searching...'
-                                            : 'Search'}
+                                        {loading ? 'Searching...' : 'Search'}
                                     </button>
                                 </div>
                             </form>
@@ -124,30 +127,25 @@ export default function CardIndex() {
                         </div>
                     )}
 
-                    {searched &&
-                        !loading &&
-                        results.length === 0 &&
-                        !error && (
-                            <div className="mx-auto mt-8 max-w-xl rounded-3xl border bg-gradient-to-br from-blue-500/5 to-purple-500/5 p-10 text-center dark:border-red-500/20 dark:from-red-950/20 dark:to-purple-950/20">
-                                <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-purple-500/10 text-purple-500 dark:bg-red-500/10 dark:text-red-400">
-                                    <Search className="size-6" />
-                                </div>
-
-                                <h2 className="mt-5 text-xl font-bold">
-                                    No cards found
-                                </h2>
-
-                                <p className="mt-2 text-sm text-muted-foreground">
-                                    We couldn't find any cards matching "
-                                    {query}".
-                                </p>
-
-                                <p className="mt-4 text-xs text-muted-foreground">
-                                    Try a Pokémon name like Charizard or
-                                    Pikachu.
-                                </p>
+                    {searched && !loading && results.length === 0 && !error && (
+                        <div className="mx-auto mt-8 max-w-xl rounded-3xl border bg-gradient-to-br from-blue-500/5 to-purple-500/5 p-10 text-center dark:border-red-500/20 dark:from-red-950/20 dark:to-purple-950/20">
+                            <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-purple-500/10 text-purple-500 dark:bg-red-500/10 dark:text-red-400">
+                                <Search className="size-6" />
                             </div>
-                        )}
+
+                            <h2 className="mt-5 text-xl font-bold">
+                                No cards found
+                            </h2>
+
+                            <p className="text-muted-foreground mt-2 text-sm">
+                                We couldn't find any cards matching "{query}".
+                            </p>
+
+                            <p className="text-muted-foreground mt-4 text-xs">
+                                Try a Pokémon name like Charizard or Pikachu.
+                            </p>
+                        </div>
+                    )}
 
                     {results.length > 0 && (
                         <div>
@@ -157,13 +155,13 @@ export default function CardIndex() {
                                         Search results
                                     </p>
 
-                                    <p className="mt-1 text-sm text-muted-foreground">
+                                    <p className="text-muted-foreground mt-1 text-sm">
                                         {results.length}{' '}
                                         {results.length === 1
                                             ? 'card'
                                             : 'cards'}{' '}
                                         found for{' '}
-                                        <span className="font-medium text-foreground">
+                                        <span className="text-foreground font-medium">
                                             "{query}"
                                         </span>
                                     </p>
@@ -175,7 +173,7 @@ export default function CardIndex() {
                                     <Link
                                         key={card.external_id}
                                         href={`/cards/${card.external_id}`}
-                                        className="group relative overflow-hidden rounded-2xl border bg-card shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl dark:hover:shadow-red-950/30"
+                                        className="group bg-card relative overflow-hidden rounded-2xl border shadow-sm transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl dark:hover:shadow-red-950/30"
                                     >
                                         <div
                                             className={`absolute inset-x-0 top-0 z-10 h-1 ${
@@ -187,7 +185,7 @@ export default function CardIndex() {
                                             }`}
                                         />
 
-                                        <div className="aspect-[2.5/3.5] overflow-hidden bg-gradient-to-br from-muted to-background p-2">
+                                        <div className="from-muted to-background aspect-[2.5/3.5] overflow-hidden bg-gradient-to-br p-2">
                                             {card.image_large ? (
                                                 <img
                                                     src={card.image_large}
@@ -195,7 +193,7 @@ export default function CardIndex() {
                                                     className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-105"
                                                 />
                                             ) : (
-                                                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                                                <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
                                                     No image available
                                                 </div>
                                             )}
@@ -211,7 +209,7 @@ export default function CardIndex() {
                                                     #{card.number}
                                                 </span>
 
-                                                <ArrowRight className="size-4 text-muted-foreground opacity-0 transition-all group-hover:translate-x-1 group-hover:text-primary group-hover:opacity-100" />
+                                                <ArrowRight className="text-muted-foreground group-hover:text-primary size-4 opacity-0 transition-all group-hover:translate-x-1 group-hover:opacity-100" />
                                             </div>
                                         </div>
                                     </Link>

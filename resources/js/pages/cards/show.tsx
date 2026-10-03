@@ -108,6 +108,58 @@ function formatDate(date: string | null | undefined): string {
     return parsed.toLocaleDateString();
 }
 
+/**
+ * Read a response body as JSON without throwing.
+ *
+ * Error responses are not always JSON — an expired CSRF token or a server
+ * error returns HTML — so a parse failure must not replace the real status
+ * with a JSON syntax error.
+ */
+async function readJson(response: Response): Promise<Record<string, unknown>> {
+    try {
+        const data = await response.json();
+
+        return typeof data === 'object' && data !== null
+            ? (data as Record<string, unknown>)
+            : {};
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * Build a readable message from a failed collection request.
+ */
+function requestError(
+    response: Response,
+    data: Record<string, unknown>,
+    fallback: string,
+): string {
+    /*
+     * A validation failure reports per-field messages, which are more useful
+     * than the generic top-level one.
+     */
+    const errors = data.errors;
+
+    if (typeof errors === 'object' && errors !== null) {
+        const messages = Object.values(errors).flatMap((value) =>
+            Array.isArray(value) ? value : [value],
+        );
+
+        const first = messages.find((message) => typeof message === 'string');
+
+        if (first) {
+            return first;
+        }
+    }
+
+    if (typeof data.message === 'string' && data.message !== '') {
+        return data.message;
+    }
+
+    return `${fallback} (HTTP ${response.status})`;
+}
+
 export default function Show({ card, isAuthenticated }: Props) {
     const [showCollectionModal, setShowCollectionModal] = useState(false);
 
@@ -159,6 +211,8 @@ export default function Show({ card, isAuthenticated }: Props) {
         setSaving(true);
         setError('');
 
+        const fallback = 'Unable to add card to your collection.';
+
         try {
             const response = await fetch('/collection/cards', {
                 method: 'POST',
@@ -181,21 +235,15 @@ export default function Show({ card, isAuthenticated }: Props) {
                 }),
             });
 
-            const data = await response.json();
+            const data = await readJson(response);
 
             if (!response.ok) {
-                throw new Error(
-                    data.message ?? 'Unable to add card to your collection.',
-                );
+                throw new Error(requestError(response, data, fallback));
             }
 
             setSuccess(true);
         } catch (err) {
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : 'Unable to add card to your collection.',
-            );
+            setError(err instanceof Error ? err.message : fallback);
         } finally {
             setSaving(false);
         }
@@ -203,9 +251,9 @@ export default function Show({ card, isAuthenticated }: Props) {
 
     return (
         <>
-            <Head title={`${card.name} | PokéVault`} />
+            <Head title={`${card.name} | DexVault`} />
 
-            <div className="min-h-screen bg-background">
+            <div className="bg-background min-h-screen">
                 <main className="mx-auto max-w-6xl px-6 py-10">
                     <div className="grid gap-10 lg:grid-cols-[380px_1fr]">
                         {/* Card image */}
@@ -217,7 +265,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                     className="h-auto w-full max-w-[380px] self-start rounded-2xl shadow-2xl transition-transform duration-300 hover:scale-[1.02]"
                                 />
                             ) : (
-                                <div className="flex aspect-[2.5/3.5] w-full max-w-[380px] items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                                <div className="bg-muted text-muted-foreground flex aspect-[2.5/3.5] w-full max-w-[380px] items-center justify-center rounded-2xl">
                                     No image available
                                 </div>
                             )}
@@ -226,7 +274,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                         {/* Card information */}
                         <div>
                             <div className="mb-8">
-                                <p className="mb-2 text-sm font-medium uppercase tracking-wider text-muted-foreground">
+                                <p className="text-muted-foreground mb-2 text-sm font-medium tracking-wider uppercase">
                                     {card.set.name}
                                 </p>
 
@@ -234,7 +282,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                     {card.name}
                                 </h1>
 
-                                <div className="mt-3 flex flex-wrap gap-3 text-sm text-muted-foreground">
+                                <div className="text-muted-foreground mt-3 flex flex-wrap gap-3 text-sm">
                                     <span>#{card.number}</span>
 
                                     {card.rarity && (
@@ -263,10 +311,10 @@ export default function Show({ card, isAuthenticated }: Props) {
                                     Market Price
                                 </h2>
 
-                                <div className="rounded-2xl border bg-card p-6 shadow-sm">
+                                <div className="bg-card rounded-2xl border p-6 shadow-sm">
                                     <div className="flex items-end justify-between">
                                         <div>
-                                            <p className="text-sm text-muted-foreground">
+                                            <p className="text-muted-foreground text-sm">
                                                 Current Market
                                             </p>
 
@@ -277,7 +325,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                             </p>
                                         </div>
 
-                                        <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium">
+                                        <span className="bg-muted rounded-full px-3 py-1 text-xs font-medium">
                                             TCGplayer
                                         </span>
                                     </div>
@@ -293,18 +341,16 @@ export default function Show({ card, isAuthenticated }: Props) {
                                         </h2>
 
                                         {tcgplayer.updated && (
-                                            <span className="text-xs text-muted-foreground">
+                                            <span className="text-muted-foreground text-xs">
                                                 Updated{' '}
-                                                {formatDate(
-                                                    tcgplayer.updated,
-                                                )}
+                                                {formatDate(tcgplayer.updated)}
                                             </span>
                                         )}
                                     </div>
 
                                     <div className="grid gap-4 sm:grid-cols-3">
-                                        <div className="rounded-xl border bg-card p-5">
-                                            <p className="text-sm text-muted-foreground">
+                                        <div className="bg-card rounded-xl border p-5">
+                                            <p className="text-muted-foreground text-sm">
                                                 Low
                                             </p>
 
@@ -322,8 +368,8 @@ export default function Show({ card, isAuthenticated }: Props) {
                                             </p>
                                         </div>
 
-                                        <div className="rounded-xl border bg-card p-5">
-                                            <p className="text-sm text-muted-foreground">
+                                        <div className="bg-card rounded-xl border p-5">
+                                            <p className="text-muted-foreground text-sm">
                                                 Market
                                             </p>
 
@@ -341,8 +387,8 @@ export default function Show({ card, isAuthenticated }: Props) {
                                             </p>
                                         </div>
 
-                                        <div className="rounded-xl border bg-card p-5">
-                                            <p className="text-sm text-muted-foreground">
+                                        <div className="bg-card rounded-xl border p-5">
+                                            <p className="text-muted-foreground text-sm">
                                                 High
                                             </p>
 
@@ -371,8 +417,8 @@ export default function Show({ card, isAuthenticated }: Props) {
                                     </h2>
 
                                     <div className="grid gap-4 sm:grid-cols-3">
-                                        <div className="rounded-xl border bg-card p-5">
-                                            <p className="text-sm text-muted-foreground">
+                                        <div className="bg-card rounded-xl border p-5">
+                                            <p className="text-muted-foreground text-sm">
                                                 Average
                                             </p>
 
@@ -384,8 +430,8 @@ export default function Show({ card, isAuthenticated }: Props) {
                                             </p>
                                         </div>
 
-                                        <div className="rounded-xl border bg-card p-5">
-                                            <p className="text-sm text-muted-foreground">
+                                        <div className="bg-card rounded-xl border p-5">
+                                            <p className="text-muted-foreground text-sm">
                                                 Low
                                             </p>
 
@@ -397,8 +443,8 @@ export default function Show({ card, isAuthenticated }: Props) {
                                             </p>
                                         </div>
 
-                                        <div className="rounded-xl border bg-card p-5">
-                                            <p className="text-sm text-muted-foreground">
+                                        <div className="bg-card rounded-xl border p-5">
+                                            <p className="text-muted-foreground text-sm">
                                                 Trend
                                             </p>
 
@@ -419,7 +465,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                     Price History
                                 </h2>
 
-                                <div className="flex h-56 items-center justify-center rounded-2xl border border-dashed bg-muted/30 text-sm text-muted-foreground">
+                                <div className="bg-muted/30 text-muted-foreground flex h-56 items-center justify-center rounded-2xl border border-dashed text-sm">
                                     Historical price tracking coming soon.
                                 </div>
                             </section>
@@ -430,7 +476,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                     Set Information
                                 </h2>
 
-                                <div className="rounded-2xl border bg-card p-6">
+                                <div className="bg-card rounded-2xl border p-6">
                                     <div className="flex items-center gap-4">
                                         {(card.set.logo_url ||
                                             card.set.symbol_url) && (
@@ -451,13 +497,13 @@ export default function Show({ card, isAuthenticated }: Props) {
                                             </h3>
 
                                             {card.set.series && (
-                                                <p className="text-sm text-muted-foreground">
+                                                <p className="text-muted-foreground text-sm">
                                                     {card.set.series}
                                                 </p>
                                             )}
 
                                             {card.set.printed_total && (
-                                                <p className="mt-1 text-sm text-muted-foreground">
+                                                <p className="text-muted-foreground mt-1 text-sm">
                                                     {card.set.printed_total}{' '}
                                                     cards
                                                 </p>
@@ -481,15 +527,15 @@ export default function Show({ card, isAuthenticated }: Props) {
                         }
                     }}
                 >
-                    <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border bg-background shadow-2xl">
+                    <div className="bg-background max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border shadow-2xl">
                         {/* Modal header */}
-                        <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background/95 px-6 py-5 backdrop-blur">
+                        <div className="bg-background/95 sticky top-0 z-10 flex items-center justify-between border-b px-6 py-5 backdrop-blur">
                             <div>
                                 <h2 className="text-xl font-bold">
                                     Add to My Collection
                                 </h2>
 
-                                <p className="text-sm text-muted-foreground">
+                                <p className="text-muted-foreground text-sm">
                                     {card.name} #{card.number}
                                 </p>
                             </div>
@@ -498,7 +544,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                 type="button"
                                 onClick={closeCollectionModal}
                                 disabled={saving}
-                                className="rounded-lg p-2 text-xl text-muted-foreground transition hover:bg-muted hover:text-foreground disabled:opacity-50"
+                                className="text-muted-foreground hover:bg-muted hover:text-foreground rounded-lg p-2 text-xl transition disabled:opacity-50"
                             >
                                 ×
                             </button>
@@ -515,7 +561,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                         Card Added!
                                     </h3>
 
-                                    <p className="mt-2 text-muted-foreground">
+                                    <p className="text-muted-foreground mt-2">
                                         {card.name} has been added to your
                                         collection.
                                     </p>
@@ -523,7 +569,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                     <button
                                         type="button"
                                         onClick={closeCollectionModal}
-                                        className="mt-7 rounded-xl bg-primary px-6 py-3 font-semibold text-primary-foreground transition hover:opacity-90"
+                                        className="bg-primary text-primary-foreground mt-7 rounded-xl px-6 py-3 font-semibold transition hover:opacity-90"
                                     >
                                         Done
                                     </button>
@@ -569,7 +615,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                         ),
                                                     )
                                                 }
-                                                className="w-full rounded-lg border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary"
+                                                className="bg-background focus:ring-primary w-full rounded-lg border px-3 py-2.5 outline-none focus:ring-2"
                                             />
                                         </div>
 
@@ -591,7 +637,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                             event.target.value,
                                                         )
                                                     }
-                                                    className="w-full rounded-lg border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary"
+                                                    className="bg-background focus:ring-primary w-full rounded-lg border px-3 py-2.5 outline-none focus:ring-2"
                                                 >
                                                     {conditions.map((item) => (
                                                         <option
@@ -620,7 +666,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                             event.target.value,
                                                         )
                                                     }
-                                                    className="w-full rounded-lg border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary"
+                                                    className="bg-background focus:ring-primary w-full rounded-lg border px-3 py-2.5 outline-none focus:ring-2"
                                                 >
                                                     {languages.map((item) => (
                                                         <option
@@ -647,13 +693,13 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                         className="mb-2 block text-sm font-medium"
                                                     >
                                                         Purchase Price
-                                                        <span className="ml-1 font-normal text-muted-foreground">
+                                                        <span className="text-muted-foreground ml-1 font-normal">
                                                             (optional)
                                                         </span>
                                                     </label>
 
                                                     <div className="relative">
-                                                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                                                        <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2">
                                                             $
                                                         </span>
 
@@ -665,16 +711,14 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                             value={
                                                                 purchasePrice
                                                             }
-                                                            onChange={(
-                                                                event,
-                                                            ) =>
+                                                            onChange={(event) =>
                                                                 setPurchasePrice(
                                                                     event.target
                                                                         .value,
                                                                 )
                                                             }
                                                             placeholder="0.00"
-                                                            className="w-full rounded-lg border bg-background py-2.5 pl-7 pr-3 outline-none focus:ring-2 focus:ring-primary"
+                                                            className="bg-background focus:ring-primary w-full rounded-lg border py-2.5 pr-3 pl-7 outline-none focus:ring-2"
                                                         />
                                                     </div>
                                                 </div>
@@ -685,7 +729,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                         className="mb-2 block text-sm font-medium"
                                                     >
                                                         Purchase Date
-                                                        <span className="ml-1 font-normal text-muted-foreground">
+                                                        <span className="text-muted-foreground ml-1 font-normal">
                                                             (optional)
                                                         </span>
                                                     </label>
@@ -700,7 +744,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                                     .value,
                                                             )
                                                         }
-                                                        className="w-full rounded-lg border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary"
+                                                        className="bg-background focus:ring-primary w-full rounded-lg border px-3 py-2.5 outline-none focus:ring-2"
                                                     />
                                                 </div>
                                             </div>
@@ -713,7 +757,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                 className="mb-2 block text-sm font-semibold"
                                             >
                                                 Notes
-                                                <span className="ml-1 font-normal text-muted-foreground">
+                                                <span className="text-muted-foreground ml-1 font-normal">
                                                     (optional)
                                                 </span>
                                             </label>
@@ -722,14 +766,12 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                 id="notes"
                                                 value={notes}
                                                 onChange={(event) =>
-                                                    setNotes(
-                                                        event.target.value,
-                                                    )
+                                                    setNotes(event.target.value)
                                                 }
                                                 placeholder="Anything you want to remember about this card..."
                                                 rows={4}
                                                 maxLength={2000}
-                                                className="w-full resize-none rounded-lg border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary"
+                                                className="bg-background focus:ring-primary w-full resize-none rounded-lg border px-3 py-2.5 outline-none focus:ring-2"
                                             />
                                         </div>
 
@@ -739,7 +781,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                                                 type="button"
                                                 onClick={closeCollectionModal}
                                                 disabled={saving}
-                                                className="flex-1 rounded-xl border px-4 py-3 font-semibold transition hover:bg-muted disabled:opacity-50"
+                                                className="hover:bg-muted flex-1 rounded-xl border px-4 py-3 font-semibold transition disabled:opacity-50"
                                             >
                                                 Cancel
                                             </button>

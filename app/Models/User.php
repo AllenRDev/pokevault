@@ -2,8 +2,9 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Auth\MustVerifyEmail as MustVerifyEmailContract;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -27,10 +28,10 @@ use Illuminate\Support\Carbon;
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmailContract
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, MustVerifyEmail, Notifiable;
 
     /**
      * Get the attributes that should be cast.
@@ -44,8 +45,12 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
-public function userCards(): HasMany
-{
-    return $this->hasMany(UserCard::class);
-}
+
+    /**
+     * @return HasMany<UserCard, $this>
+     */
+    public function userCards(): HasMany
+    {
+        return $this->hasMany(UserCard::class);
+    }
 }

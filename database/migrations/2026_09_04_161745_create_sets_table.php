@@ -10,25 +10,25 @@ return new class extends Migration
      * Run the migrations.
      */
     public function up(): void
-{
-    Schema::create('sets', function (Blueprint $table) {
-        $table->id();
+    {
+        Schema::create('sets', function (Blueprint $table) {
+            $table->id();
 
-        // Pokémon TCG API identifiers
-        $table->string('external_id')->unique();
+            // Pokémon TCG API identifiers
+            $table->string('external_id')->unique();
 
-        $table->string('name');
-        $table->string('series')->nullable();
+            $table->string('name');
+            $table->string('series')->nullable();
 
-        $table->unsignedInteger('printed_total')->nullable();
-        $table->date('release_date')->nullable();
+            $table->unsignedInteger('printed_total')->nullable();
+            $table->date('release_date')->nullable();
 
-        $table->string('logo_url')->nullable();
-        $table->string('symbol_url')->nullable();
+            $table->string('logo_url')->nullable();
+            $table->string('symbol_url')->nullable();
 
-        $table->timestamps();
-    });
-}
+            $table->timestamps();
+        });
+    }
 
     /**
      * Reverse the migrations.

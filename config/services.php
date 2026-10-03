@@ -35,9 +35,18 @@ return [
         ],
     ],
     'tcgdex' => [
-    'base_url' => env(
-        'TCGDEX_API_URL',
-        'https://api.tcgdex.net/v2/en'
-    ),
+        /*
+         * The `?:` form is used so an env key that is present but empty
+         * falls back to the default rather than resolving to an empty
+         * string.
+         */
+        'base_url' => env('TCGDEX_API_URL') ?: 'https://api.tcgdex.net/v2/en',
+
+        /*
+         * The Pokémon name searched to populate the landing page featured
+         * section. Kept in config so the curated pick can be changed
+         * without touching the service.
+         */
+        'featured_card' => env('TCGDEX_FEATURED_CARD') ?: 'Charizard',
     ],
 ];
