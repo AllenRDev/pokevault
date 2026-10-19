@@ -27,8 +27,8 @@ A personal Pokémon TCG collection tracker built to make organizing, exploring, 
 Clone the repository and install the dependencies:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/dexvault.git
-cd dexvault
+git clone https://github.com/AllenRDev/pokevault.git
+cd pokevault
 
 composer install
 npm install
@@ -100,6 +100,30 @@ Point it at a directory containing `worker.min.js` from `tesseract.js`, the
 files from `tesseract.js-core`, and `eng.traineddata.gz` from
 `tessdata_fast`. Leave it unset to use the CDN defaults.
 
+## ☁️ Deployment
+
+The app is hosted on [Laravel Cloud](https://laravel.cloud). Delivery works in
+two halves:
+
+- **CI** — every push and pull request runs `.github/workflows/tests.yml`
+  (lint, types, static analysis, tests, and a production asset build), with
+  Composer and npm dependencies cached between runs.
+- **CD** — when CI passes on `main`, the workflow's `deploy` job POSTs to the
+  Laravel Cloud **deploy hook** for the production environment with the exact
+  commit that passed. Laravel Cloud pulls that commit, runs the build, and
+  releases it with zero downtime. Broken code therefore never deploys.
+
+To enable CD, turn on **Deploy hook** under the environment's
+*Settings > Deployments* on Laravel Cloud, then add the URL it provides as a
+repository secret named `LARAVEL_CLOUD_DEPLOY_HOOK`. With the hook in place,
+"push to deploy" under the same settings screen can be turned off so that only
+CI-green commits go live.
+
+The production environment must also set the mail variables from `.env.example`
+(`MAIL_MAILER=resend`, `RESEND_API_KEY`, and a `MAIL_FROM_ADDRESS` on a domain
+verified with the provider) — the app refuses to boot in production without
+them, by design.
+
 ## 🗺️ Roadmap
 
 - [x] Card search
@@ -114,7 +138,7 @@ files from `tesseract.js-core`, and `eng.traineddata.gz` from
 - [ ] Historical price tracking
 - [ ] Collection value analytics
 - [ ] PostgreSQL production deployment
-- [ ] Production deployment
+- [x] Production deployment
 
 ## 📌 About
 
