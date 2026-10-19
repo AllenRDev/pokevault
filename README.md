@@ -114,7 +114,7 @@ two halves:
   releases it with zero downtime. Broken code therefore never deploys.
 
 To enable CD, turn on **Deploy hook** under the environment's
-*Settings > Deployments* on Laravel Cloud, then add the URL it provides as a
+_Settings > Deployments_ on Laravel Cloud, then add the URL it provides as a
 repository secret named `LARAVEL_CLOUD_DEPLOY_HOOK`. With the hook in place,
 "push to deploy" under the same settings screen can be turned off so that only
 CI-green commits go live.
