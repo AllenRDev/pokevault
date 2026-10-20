@@ -6,7 +6,11 @@ use App\Models\User;
 use App\Models\UserCard;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mailer\SentMessage;
+use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Tests\TestCase;
 
 /*
@@ -182,4 +186,27 @@ function createUserCard(?User $user = null, ?Card $card = null, array $attribute
         'condition' => 'Near Mint',
         'language' => 'English',
     ], $attributes));
+}
+
+/**
+ * Point the default mailer at a transport that always fails, so flows that
+ * send mail can be tested without reaching a real provider.
+ */
+function useFailingMailer(): void
+{
+    Mail::extend('exploding', fn () => new class extends AbstractTransport
+    {
+        protected function doSend(SentMessage $message): void
+        {
+            throw new TransportException('mail is down');
+        }
+
+        public function __toString(): string
+        {
+            return 'exploding';
+        }
+    });
+
+    config()->set('mail.mailers.exploding', ['transport' => 'exploding']);
+    config()->set('mail.default', 'exploding');
 }

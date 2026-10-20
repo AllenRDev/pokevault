@@ -7,6 +7,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -35,4 +36,23 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        /*
+         * A broken mail transport should not turn an otherwise valid form
+         * submission into a 500. Registration and verification resends handle
+         * this themselves; this is the safety net for the remaining mail
+         * flows, such as password resets. The exception is still reported, so
+         * the real provider error remains in the logs.
+         */
+        $exceptions->render(function (TransportExceptionInterface $exception, Request $request) {
+            report($exception);
+
+            $message = 'We could not send that email. Please try again shortly.';
+
+            if ($request->expectsJson()) {
+                return response()->json(['message' => $message], 503);
+            }
+
+            return back()->withErrors(['email' => $message]);
+        });
     })->create();
