@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Controllers\Auth\RegisteredUserController;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -13,6 +14,7 @@ use Illuminate\Validation\Rules\Password;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Http\Controllers\RegisteredUserController as FortifyRegisteredUserController;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -21,7 +23,16 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        /*
+         * Fortify routes point at its own controller class. Swapping the
+         * binding lets us keep the stock flow except for registration, where
+         * a failed verification email must not strand an already-created
+         * account behind a 500.
+         */
+        $this->app->bind(
+            FortifyRegisteredUserController::class,
+            RegisteredUserController::class,
+        );
     }
 
     /**
@@ -65,6 +76,7 @@ class FortifyServiceProvider extends ServiceProvider
 
         Fortify::verifyEmailView(fn (Request $request) => Inertia::render('auth/verify-email', [
             'status' => $request->session()->get('status'),
+            'mailFailed' => (bool) $request->session()->pull('verification_email_failed', false),
         ]));
 
         Fortify::registerView(fn () => Inertia::render('auth/register', [

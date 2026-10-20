@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Providers\AppServiceProvider;
 use Illuminate\Auth\Notifications\VerifyEmail;
+use Illuminate\Mail\Transport\ResendTransport;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;
@@ -219,6 +220,21 @@ test('production boots cleanly on a complete transport configuration', function 
     config()->set('services.resend.key', 're_test');
 
     expect(bootAsProduction())->toBeInstanceOf(AppServiceProvider::class);
+});
+
+test('the configured resend transport can actually be built', function () {
+    config()->set('mail.default', 'resend');
+    config()->set('mail.from.address', 'pokevault@cards.test');
+    config()->set('services.resend.key', 're_test');
+
+    /*
+     * The production mail guard only checks that a key is present, so a
+     * missing resend/resend-php package would slip through boot and only blow
+     * up when the verification email is sent - after the account row has
+     * already been committed. Resolving the transport here catches that.
+     */
+    expect(Mail::mailer('resend')->getSymfonyTransport())
+        ->toBeInstanceOf(ResendTransport::class);
 });
 
 test('a non production environment is not subject to the mail guard', function () {
