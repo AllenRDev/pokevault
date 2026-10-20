@@ -197,6 +197,22 @@ test('production refuses to boot on a malformed from address', function () {
     bootAsProduction();
 })->throws(RuntimeException::class, 'not a valid email address');
 
+test('production refuses to boot on smtp without a host', function () {
+    config()->set('mail.default', 'smtp');
+    config()->set('mail.from.address', 'pokevault@cards.test');
+    config()->set('mail.mailers.smtp.host', null);
+
+    bootAsProduction();
+})->throws(RuntimeException::class, 'MAIL_HOST is empty');
+
+test('production boots cleanly on a complete smtp configuration', function () {
+    config()->set('mail.default', 'smtp');
+    config()->set('mail.from.address', 'pokevault@cards.test');
+    config()->set('mail.mailers.smtp.host', 'smtp.example.test');
+
+    expect(bootAsProduction())->toBeInstanceOf(AppServiceProvider::class);
+});
+
 test('production boots cleanly on a complete transport configuration', function () {
     config()->set('mail.default', 'resend');
     config()->set('mail.from.address', 'pokevault@cards.test');

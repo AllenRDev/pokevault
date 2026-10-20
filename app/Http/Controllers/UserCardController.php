@@ -11,9 +11,12 @@ use App\Services\CollectionStats;
 use App\Services\TcgDexCardMapper;
 use App\Services\TcgDexService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class UserCardController extends Controller
 {
@@ -105,13 +108,20 @@ class UserCardController extends Controller
             return $query;
         }
 
-        $needle = '%'.str_replace(['%', '_'], ['\%', '\_'], $term).'%';
+        /*
+         * `!` is used as the escape character because an explicit ESCAPE
+         * clause is required: SQLite does not treat a backslash as an escape
+         * by default, so escaping with one would make a literal `%` or `_`
+         * search behave differently there than on Postgres or MySQL.
+         */
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
+        $needle = "%{$escaped}%";
 
         return $query->whereHas('card', function (Builder $card) use ($needle): void {
-            $card->where('name', 'like', $needle)
-                ->orWhere('number', 'like', $needle)
+            $card->whereRaw("cards.name LIKE ? ESCAPE '!'", [$needle])
+                ->orWhereRaw("cards.number LIKE ? ESCAPE '!'", [$needle])
                 ->orWhereHas('set', function (Builder $set) use ($needle): void {
-                    $set->where('name', 'like', $needle);
+                    $set->whereRaw("sets.name LIKE ? ESCAPE '!'", [$needle]);
                 });
         });
     }
@@ -135,14 +145,23 @@ class UserCardController extends Controller
             return;
         }
 
+        /*
+         * Unpriced cards sort last in both directions. Without the explicit
+         * null check SQLite puts NULL first ascending and Postgres puts it
+         * first descending, so "cheapest" would surface cards with no price.
+         */
         match ($sort) {
-            'price-high' => $query->orderByDesc('market_price'),
-            'price-low' => $query->orderBy('market_price'),
-            'quantity' => $query->orderByDesc('quantity'),
-            default => $query->orderByDesc('created_at'),
+            'price-high' => $query
+                ->orderByRaw('user_cards.market_price IS NULL')
+                ->orderByDesc('user_cards.market_price'),
+            'price-low' => $query
+                ->orderByRaw('user_cards.market_price IS NULL')
+                ->orderBy('user_cards.market_price'),
+            'quantity' => $query->orderByDesc('user_cards.quantity'),
+            default => $query->orderByDesc('user_cards.created_at'),
         };
 
-        $query->orderByDesc('id');
+        $query->orderByDesc('user_cards.id');
     }
 
     /**
@@ -200,61 +219,55 @@ class UserCardController extends Controller
          */
         $marketPrice = $this->cardMapper->getMarketPrice($cardData);
 
-        $marketPriceUpdatedAt = $marketPrice !== null
-            ? now()
-            : null;
-
         /*
-         * If the user already owns this card with the same
-         * condition/language, increase the quantity.
+         * If the user already owns this card with the same condition and
+         * language, increase the quantity. The lookup and insert run in one
+         * transaction so concurrent submissions cannot both decide the row
+         * is missing; if they still race, the unique index rejects the loser
+         * and it is folded into the row the winner created.
          */
-        $userCard = UserCard::where([
+        $attributes = [
             'user_id' => $request->user()->id,
             'card_id' => $card->id,
             'condition' => $validated['condition'],
             'language' => $validated['language'],
-        ])->first();
+        ];
 
-        if ($userCard) {
-            /*
-             * The incoming quantity is validated, but it is bounded again
-             * here so the stored total can neither be pushed past the same
-             * ceiling nor go negative.
-             */
-            $incoming = max(
-                1,
-                min(UserCard::MAX_QUANTITY, (int) $validated['quantity'])
-            );
+        try {
+            $userCard = DB::transaction(function () use (
+                $attributes,
+                $validated,
+                $marketPrice
+            ): UserCard {
+                $existing = UserCard::query()
+                    ->where($attributes)
+                    ->lockForUpdate()
+                    ->first();
 
-            $userCard->quantity = min(
-                UserCard::MAX_QUANTITY,
-                $userCard->quantity + $incoming
-            );
-
-            foreach (['purchase_price', 'purchase_date', 'notes'] as $field) {
-                if (array_key_exists($field, $validated)) {
-                    $userCard->{$field} = $validated[$field];
+                if ($existing) {
+                    return $this->mergeInto(
+                        $existing,
+                        $validated,
+                        $marketPrice
+                    );
                 }
-            }
 
-            $userCard->market_price = $marketPrice;
-            $userCard->market_price_updated_at =
-                $marketPriceUpdatedAt;
-
-            $userCard->save();
-        } else {
-            $userCard = UserCard::create([
-                'user_id' => $request->user()->id,
-                'card_id' => $card->id,
-                'quantity' => $validated['quantity'],
-                'condition' => $validated['condition'],
-                'language' => $validated['language'],
-                'purchase_price' => $validated['purchase_price'] ?? null,
-                'purchase_date' => $validated['purchase_date'] ?? null,
-                'notes' => $validated['notes'] ?? null,
-                'market_price' => $marketPrice,
-                'market_price_updated_at' => $marketPriceUpdatedAt,
-            ]);
+                return UserCard::create([
+                    ...$attributes,
+                    'quantity' => $validated['quantity'],
+                    'purchase_price' => $validated['purchase_price'] ?? null,
+                    'purchase_date' => $validated['purchase_date'] ?? null,
+                    'notes' => $validated['notes'] ?? null,
+                    'market_price' => $marketPrice,
+                    'market_price_updated_at' => $marketPrice !== null ? now() : null,
+                ]);
+            });
+        } catch (UniqueConstraintViolationException) {
+            $userCard = $this->mergeInto(
+                UserCard::query()->where($attributes)->firstOrFail(),
+                $validated,
+                $marketPrice
+            );
         }
 
         $userCard->load('card.set');
@@ -263,6 +276,44 @@ class UserCardController extends Controller
             'message' => 'Card added to your collection.',
             'user_card' => $userCard,
         ], 201);
+    }
+
+    /**
+     * Fold an incoming quantity into an existing collection entry.
+     *
+     * The incoming quantity is validated, but it is bounded again here so
+     * the stored total can neither be pushed past the ceiling nor go
+     * negative.
+     *
+     * @param  array<string, mixed>  $validated
+     */
+    private function mergeInto(
+        UserCard $userCard,
+        array $validated,
+        ?float $marketPrice
+    ): UserCard {
+        $incoming = max(
+            1,
+            min(UserCard::MAX_QUANTITY, (int) $validated['quantity'])
+        );
+
+        $userCard->quantity = min(
+            UserCard::MAX_QUANTITY,
+            $userCard->quantity + $incoming
+        );
+
+        foreach (['purchase_price', 'purchase_date', 'notes'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $userCard->{$field} = $validated[$field];
+            }
+        }
+
+        $userCard->market_price = $marketPrice;
+        $userCard->market_price_updated_at = $marketPrice !== null ? now() : null;
+
+        $userCard->save();
+
+        return $userCard;
     }
 
     /**
@@ -277,7 +328,29 @@ class UserCardController extends Controller
             404
         );
 
-        $userCard->update($request->validated());
+        $validated = $request->validated();
+
+        /*
+         * `condition` and `language` are part of the unique index over
+         * (user_id, card_id, condition, language), so repointing an entry at
+         * a grade the user already owns would otherwise surface as a 500
+         * from the database rather than a validation error.
+         */
+        $duplicate = UserCard::query()
+            ->where('user_id', $request->user()->id)
+            ->where('card_id', $userCard->card_id)
+            ->where('condition', $validated['condition'])
+            ->where('language', $validated['language'])
+            ->where('id', '!=', $userCard->id)
+            ->exists();
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'condition' => 'You already have this card in that condition and language.',
+            ]);
+        }
+
+        $userCard->update($validated);
         $userCard->load('card.set');
 
         return response()->json([

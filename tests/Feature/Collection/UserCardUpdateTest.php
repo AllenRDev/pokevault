@@ -153,6 +153,27 @@ test('a card cannot be pointed at a different card', function () {
         ->and($userCard->user_id)->toBe($this->user->id);
 });
 
+test('a card cannot be moved onto an existing condition and language', function () {
+    $lightlyPlayed = createUserCard($this->user, $this->userCard->card, [
+        'condition' => 'Lightly Played',
+        'language' => 'English',
+        'quantity' => 3,
+    ]);
+
+    $this->putJson(route('collection.cards.update', $lightlyPlayed), updatePayload([
+        'quantity' => 2,
+        'condition' => 'Near Mint',
+        'language' => 'English',
+    ]))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('condition');
+
+    expect($lightlyPlayed->refresh())
+        ->condition->toBe('Lightly Played')
+        ->quantity->toBe(3)
+        ->and(UserCard::query()->count())->toBe(2);
+});
+
 /*
 |--------------------------------------------------------------------------
 | Validation

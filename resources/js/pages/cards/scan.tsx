@@ -2,6 +2,7 @@ import { Head, Link } from '@inertiajs/react';
 import { Check, Loader2, ScanLine, Search } from 'lucide-react';
 import { useRef, useState } from 'react';
 import CardScanner, { type CardScannerHandle } from '@/components/CardScanner';
+import { csrfToken } from '@/lib/csrf';
 import { readCard, type CardReading } from '@/lib/ocr';
 
 interface MatchCandidate {
@@ -114,6 +115,7 @@ export default function Scan() {
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken(),
                 },
                 body: JSON.stringify({
                     external_id: candidate.external_id,

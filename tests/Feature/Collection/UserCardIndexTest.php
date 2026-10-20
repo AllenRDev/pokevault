@@ -150,6 +150,26 @@ test('the per page value is bounded', function () {
         ->assertJsonValidationErrors('per_page');
 });
 
+test('the per page value accepts its boundaries', function () {
+    createUserCard($this->user);
+
+    $this->getJson(route('collection.cards.index', ['per_page' => 12]))
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 12);
+
+    $this->getJson(route('collection.cards.index', ['per_page' => 96]))
+        ->assertOk()
+        ->assertJsonPath('meta.per_page', 96);
+
+    $this->getJson(route('collection.cards.index', ['per_page' => 11]))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('per_page');
+
+    $this->getJson(route('collection.cards.index', ['per_page' => 97]))
+        ->assertStatus(422)
+        ->assertJsonValidationErrors('per_page');
+});
+
 /*
 |--------------------------------------------------------------------------
 | Searching and sorting
@@ -225,6 +245,38 @@ test('a search with no match holds no cards', function () {
         ->assertJsonPath('meta.total', 0);
 });
 
+test('the collection search treats wildcards as literal characters', function () {
+    $percent = createUserCard($this->user, createCard(attributes: [
+        'external_id' => 'percent',
+        'name' => '100% Charizard',
+    ]));
+
+    $underscore = createUserCard($this->user, createCard(attributes: [
+        'external_id' => 'underscore',
+        'name' => 'a_b',
+    ]));
+
+    createUserCard($this->user, createCard(attributes: [
+        'external_id' => 'plain',
+        'name' => 'Pidgeot ex',
+    ]));
+
+    $this->getJson(route('collection.cards.index', ['search' => '100%']))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $percent->id);
+
+    $this->getJson(route('collection.cards.index', ['search' => '%']))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $percent->id);
+
+    $this->getJson(route('collection.cards.index', ['search' => '_']))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $underscore->id);
+});
+
 test('the collection can be sorted by card name', function () {
     $pidgeot = createUserCard($this->user, createCard(attributes: [
         'external_id' => 'sv8pt5-3',
@@ -271,6 +323,30 @@ test('the collection can be sorted by price and quantity', function () {
         ->assertOk()
         ->assertJsonPath('data.0.id', $cheap->id)
         ->assertJsonPath('data.1.id', $dear->id);
+});
+
+test('unpriced cards sort last in both price directions', function () {
+    $unpriced = createUserCard($this->user, createCard(attributes: [
+        'external_id' => 'unpriced',
+    ]), [
+        'market_price' => null,
+    ]);
+
+    $priced = createUserCard($this->user, createCard(attributes: [
+        'external_id' => 'priced',
+    ]), [
+        'market_price' => 1.00,
+    ]);
+
+    $this->getJson(route('collection.cards.index', ['sort' => 'price-low']))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $priced->id)
+        ->assertJsonPath('data.1.id', $unpriced->id);
+
+    $this->getJson(route('collection.cards.index', ['sort' => 'price-high']))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $priced->id)
+        ->assertJsonPath('data.1.id', $unpriced->id);
 });
 
 test('an unknown sort is rejected', function () {

@@ -1,5 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { FormEvent, useState } from 'react';
+import { csrfToken } from '@/lib/csrf';
 
 interface CardSet {
     external_id: string;
@@ -161,6 +162,7 @@ function requestError(
 }
 
 export default function Show({ card, isAuthenticated }: Props) {
+    console.log(card);
     const [showCollectionModal, setShowCollectionModal] = useState(false);
 
     const [quantity, setQuantity] = useState(1);
@@ -219,10 +221,7 @@ export default function Show({ card, isAuthenticated }: Props) {
                 headers: {
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
-                    'X-CSRF-TOKEN':
-                        document
-                            .querySelector('meta[name="csrf-token"]')
-                            ?.getAttribute('content') ?? '',
+                    'X-CSRF-TOKEN': csrfToken(),
                 },
                 body: JSON.stringify({
                     external_id: card.external_id,
